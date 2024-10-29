@@ -1,0 +1,48 @@
+
+# name of the folder where the data is stored under /Systems
+global_dir_name : "example_2D_sys"
+reuse_data: 0  # determines if the NN bounds should be reused from prior runs
+
+# the noise distribution on data, current options are PERT, Uniform, Truncated_Normal
+# sig provides the support for each dimension, it is assumed all modes use the same noise
+# var is the noise variance, which only matters for trun_normal
+process_dist : {'sig': [0.01, 0.01], 'dist': 'Uniform', 'var': [0.001, 0.001]}
+
+# If you have dynamics functions to sample from like these, otherwise just the number of modes
+# unknown_modes_list: [1, 2, 3, 4]
+unknown_modes_list : [g_2d_mode0, g_2d_mode1, g_2d_mode2, g_2d_mode3]
+
+# RKHS norm for each dimension of each mode, can be an over approximation or None if unknown
+# Bs : None
+Bs : [[4., 4.], [4., 4.], [4., 4.], [4., 4.]]
+
+# how many training data points per mode
+GP_data_points : 1000
+
+# how many points you want to use for GP prediction, all data will be used to train the NN prior for DKL
+kernel_data_points : 100
+
+# basic NN training info
+nn_epochs : 20000
+width_1 : 32
+width_2 : 32
+layers : 2  # what this actually does is kind of fixed, see "train_feature_extractor" in generic_fnc.py
+nn_lr : 1e-4
+
+# the domain you would like to remain in and the number of discretizations per dimension
+X : {"x1": [-2., 2.], "x2": [-2., 2.]}
+grid_list : {"x1": 32, "x2": 32}
+
+# Shield information
+unsafe_set: [[[-1.75, -1.25], [-0.75, 1.0]],
+             [[-1.0, -0.5], [-1.25, -0.875]],
+             [[0.5, 1.125], [-1.75, -1.25]],
+             [[0.75, 1.0], [-0.5, 0.5]],
+             [[0.75, 1.75], [0.75, 1.75]]]  # this defines the location of unsafe regions/obstacles as rectangles [[dim 1 interval], [dim 2 interval], ... ]
+goal_set : [null]
+
+# labels for the IMDP, for the shield "goal set" should remain as nothing
+# ensure the labels here match the DFA atomic propositions correctly
+labels : {"b": unsafe_set, "a": goal_set}
+dfa_path: "/dfa_avoid_unsafe"
+unsafe_label: "b"
