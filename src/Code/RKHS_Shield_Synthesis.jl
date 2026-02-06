@@ -119,7 +119,7 @@ for refinement in 0:refinements
     if !isfile(res_filepath*".pkl") || !reuse_shield
         @info "Generating the Shield"
 
-        shield, values = value_iter_shield(syn_pimdp, modes, avoid_set, threshold, time_horizon)
+        shield, values = shield_algorithm(syn_pimdp, avoid_set, threshold, eps)
 
         numpy.save(global_exp_dir*"/init_states_$refinement", init_states)
         numpy.save(global_exp_dir*"/p_act_diff_$refinement", p_action_diff)
