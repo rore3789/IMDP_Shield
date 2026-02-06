@@ -5,26 +5,6 @@ using SharedArrays
 @everywhere include("quad_prog_bnb.jl")
 @pyimport numpy
 
-@everywhere function matching_label(test_label, compare_label)
-    if isnothing(compare_label)
-        return false
-    end
-    if test_label == "true"
-        # any observation satisfies true
-        return true
-    end
-    separated_test = Set(split(test_label, '∧'))
-    separated_compare = Set(split(compare_label, '∧'))
-    if issubset(separated_test, separated_compare)
-        return true
-    end
-    if issubset(separated_compare, separated_test)
-        return true
-    end
-    return false
-end
-
-
 function bound_gp_rkhs(num_regions, num_modes, num_dims, refinement, global_exp_dir, reuse_regions, use_single_dim,
                     dyn_noise, individual_nn; bound_thesis=false)
     nn_bounds_dir = global_exp_dir * "/nn_bounds"
