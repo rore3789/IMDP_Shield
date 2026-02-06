@@ -33,7 +33,6 @@ threshold = 0.05
 dyn_modes = nothing
 fixed_dim = nothing
 dfa_policy = nothing
-time_horizon = 0  # how many time steps the shield provides guarantees for, 0 is infinite horizon. This is a hacky way to turn G(safe) into X(safe) & XX(safe)
 
 # read from the yaml
 yaml_file_name = args[3]
@@ -180,30 +179,4 @@ for refinement in 0:refinements
                             dfa=dfa, dfa_policy=dfa_policy)
     end
 
-# Below code not appropriately tested yet
-#     if refinement < refinements
-#         refinement_time = @elapsed begin
-#             @info "Beginning refinement algorithm"
-#             refine_filepath = global_exp_dir * "/refine_states_$(refinement)"
-#             reuse_refine_states = false
-#             if reuse_refine_states && isfile(refine_filepath * ".npy")
-#                 refine_regions = numpy.load(refine_filepath * ".npy")
-#             else
-#                 refine_regions, dims_refined = find_specific_regions(extents, [0.1, nothing, nothing, nothing, nothing, nothing],
-#                                                                      num_dims, num_regions; selected_dims=[1])
-#                 numpy.save(refine_filepath, refine_regions)
-#             end
-#
-#             refinement_algorithm(refine_regions, extents, modes, num_dims, global_dir_name, nn_bounds_dir, refinement;
-#                                 threshold=refine_threshold, dims_refined=dims_refined, predefined_dims=true)
-#
-#
-#
-#         end
-#         @info "Refined regions created in $(refinement_time) seconds"
-#         print("\n")
-#
-#     else
-#         @info "Done!"
-#     end
 end
