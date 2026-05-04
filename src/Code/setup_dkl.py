@@ -40,7 +40,6 @@ reuse_data = yaml_data["reuse_data"]
 X = yaml_data["X"]
 grid_list = yaml_data["grid_list"]
 
-
 keys = list(X)
 d = len(keys)
 alphas = [0.01 for _ in range(d)]
@@ -105,39 +104,6 @@ for mode in modes:
                                                                    des_loss=des_loss)
     print(f'Finished deep kernel regression for mode {mode + 1}\n')
 
-
-# ==================================================================================================================== #
-# ============================================ Estimate B if necessary =============================================== #
-# ==================================================================================================================== #
-if Bs is None:
-    # TODO, estimate B for each mode/dimension
-    print("Please provide a bound on B")
-    exit()
-    Bs = [[None for _ in range(len(X))] for __ in range(len(modes))]
-    for mode in range(len(modes)):
-        x_data = torch.tensor(all_data[mode][0], dtype=torch.float32)
-        y_data = all_data[mode][1]
-        for dim in range(len(X)):
-            # estimate B for this mode/dim
-
-            model = unknown_dyn_gp[mode][dim][0]
-            model.cpu()  # unfortunately needs to be on cpu to access values
-
-            nn_portion = model.feature_extractor
-            with torch.no_grad():
-                kernel_inputs = nn_portion.forward(x_data)
-            if not individual_nns:
-                kernel_inputs = torch.index_select(kernel_inputs, 1, torch.tensor(dim))
-
-            # estimate by checking the value of f(X) K^-1 F(X)
-            covar_module = model.covar_module
-            kernel_mat = covar_module(kernel_inputs)
-            kernel_mat = kernel_mat.evaluate()
-            K = kernel_mat.detach().numpy()
-            K = (K + K.transpose()) / 2.
-            K_inv = np.linalg.inv(K)
-
-
 # ==================================================================================================================== #
 # ========================== Get the posteriors of the NN over the discretization ==================================== #
 # ==================================================================================================================== #
@@ -179,34 +145,9 @@ for mode in modes:
     else:
         if not individual_nns:
             # get NN bounds
-            x_ex = torch.tensor([[1. for _ in range(len(X))]])
             net = unknown_dyn_gp[mode][0][0].cpu().feature_extractor
-            default_bound_opts = {
-                'conv_mode': 'patches',
-                'sparse_intermediate_bounds': False,
-                'sparse_conv_intermediate_bounds': False,
-                'sparse_intermediate_bounds_with_ibp': True,
-                'sparse_features_alpha': True,
-                'sparse_spec_alpha': True,
-                'minimum_sparsity': 0.9,
-                'enable_opt_interm_bounds': False,
-                'crown_batch_size': np.inf,
-                'forward_refinement': True,
-                'dynamic_forward': True,
-                'forward_max_dim': int(1e9),
-                'use_full_conv_alpha': True,
-                'disabled_optimization': [],
-                'use_full_conv_alpha_thresh': 512,
-                'verbosity': 0,
-                'optimize_graph': {'optimizer': None},
-                'enable_beta_crown': True,
-                'enable_alpha_crown': True,
-                'fix_interm_bounds': True,
-            }
-            net = BoundedModule(net, torch.empty_like(x_ex), device=torch.device('cpu'),
-                                bound_opts=default_bound_opts)
 
-            lin_bounds, linear_trans_m, linear_trans_b = bound_gelu_nn_cpu(extents, net, lin_bounds, linear_trans_m,
+            lin_bounds, linear_trans_m, linear_trans_b = bound_gelu_nn(extents, net, lin_bounds, linear_trans_m,
                                                                            linear_trans_b)
 
             filename = nn_bounds_dir + f"/linear_bounds_{mode + 1}_0"
@@ -223,34 +164,9 @@ for mode in modes:
                 linear_trans_b = [[] for _ in range(num_regions)]
 
                 # get NN posteriors
-                x_ex = torch.tensor([[1. for _ in range(len(X))]])
                 net = unknown_dyn_gp[mode][dim][0].cpu().feature_extractor
-                default_bound_opts = {
-                    'conv_mode': 'patches',
-                    'sparse_intermediate_bounds': False,
-                    'sparse_conv_intermediate_bounds': False,
-                    'sparse_intermediate_bounds_with_ibp': True,
-                    'sparse_features_alpha': True,
-                    'sparse_spec_alpha': True,
-                    'minimum_sparsity': 0.9,
-                    'enable_opt_interm_bounds': False,
-                    'crown_batch_size': np.inf,
-                    'forward_refinement': True,
-                    'dynamic_forward': True,
-                    'forward_max_dim': int(1e9),
-                    'use_full_conv_alpha': True,
-                    'disabled_optimization': [],
-                    'use_full_conv_alpha_thresh': 512,
-                    'verbosity': 0,
-                    'optimize_graph': {'optimizer': None},
-                    'enable_beta_crown': True,
-                    'enable_alpha_crown': True,
-                    'fix_interm_bounds': True,
-                }
-                net = BoundedModule(net, torch.empty_like(x_ex), device=torch.device('cpu'),
-                                    bound_opts=default_bound_opts)
-
-                lin_bounds, linear_trans_m, linear_trans_b = bound_gelu_nn_cpu(extents, net, lin_bounds,
+                
+                lin_bounds, linear_trans_m, linear_trans_b = bound_gelu_nn(extents, net, lin_bounds,
                                                                                linear_trans_m, linear_trans_b)
                 filename = nn_bounds_dir + f"/linear_bounds_{mode + 1}_0_{dim+1}"
                 np.save(filename, np.array(lin_bounds))
