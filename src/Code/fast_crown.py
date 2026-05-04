@@ -90,42 +90,89 @@ def bound_gelu_nn_cpu(extents, net, linear_bounds_info, linear_transform_m, line
     return linear_bounds_info, linear_transform_m, linear_transform_b
 
 
-# this is on GPU and can't be parallelized, the cpu version probably can
-def bound_gelu_nn(extents, net, linear_bounds_info, linear_transform_m, linear_transform_b):
-    num_regions = len(extents)
+def bound_gelu_nn(extents, net, linear_bounds_info, linear_transform_m, linear_transform_b, batch_size=20):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    net.to(device)
+
+    x_ex = torch.tensor([[1. for _ in range(latent_dim + 1)]]).to(device)
+    default_bound_opts = {
+        'conv_mode': 'patches',
+        'sparse_intermediate_bounds': False,
+        'sparse_conv_intermediate_bounds': False,
+        'sparse_intermediate_bounds_with_ibp': True,
+        'sparse_features_alpha': True,
+        'sparse_spec_alpha': True,
+        'minimum_sparsity': 0.9,
+        'enable_opt_interm_bounds': False,
+        'crown_batch_size': np.inf,
+        'forward_refinement': True,
+        'dynamic_forward': True,
+        'forward_max_dim': int(1e9),
+        'use_full_conv_alpha': True,
+        'disabled_optimization': [],
+        'use_full_conv_alpha_thresh': 512,
+        'verbosity': 0,
+        'optimize_graph': {'optimizer': None},
+        'enable_beta_crown': True,
+        'enable_alpha_crown': True,
+        'fix_interm_bounds': True,
+    }
+    network = BoundedModule(net, torch.empty_like(x_ex), device=torch.device(device), bound_opts=default_bound_opts)
 
     required_A = defaultdict(set)
-    required_A[net.output_name[0]].add(net.input_name[0])
+    required_A[network.output_name[0]].add(network.input_name[0])
+    original_stdout = sys.stdout
+    with torch.no_grad(), open(os.devnull, 'w') as f:
+        sys.stdout = f
+        num_regions = len(extents)
+        for i in tqdm.tqdm(range(0, num_regions, batch_size), desc="Computing Bounds", unit="batch"):
+            end_idx = min(i+batch_size, num_regions)
+            xs_vec = []
+            lower_vec = []
+            upper_vec = []
+            for idx in range(i, end_idx):
+                region = extents[idx]
 
-    for idx in range(num_regions):
-        region_area = extents[idx]
-        x_min = [k[0] for k in list(region_area)]
-        x_max = [k[1] for k in list(region_area)]
+                x_min = [region[dim][0] for dim in range(latent_dim)]
 
-        lower = torch.tensor([x_min])
-        upper = torch.tensor([x_max])
-        x = (upper - lower)/2.0 + lower
-        ptb = PerturbationLpNorm(x_L=lower.to(device), x_U=upper.to(device))
-        bounded_x = BoundedTensor(x.to(device), ptb)
+                x_max = [region[dim][1] for dim in range(latent_dim)]
 
-        lb, ub, A = net.compute_bounds(x=(bounded_x,), method='alpha-CROWN', return_A=True, needed_A_dict=required_A)
+                lower = torch.tensor([x_min], dtype=torch.float32)
+                upper = torch.tensor([x_max], dtype=torch.float32)
+                x = (upper - lower) / 2.0 + lower
 
-        res = A[net.output_name[0]][net.input_name[0]]
-        lA = res['lA'].cpu().detach().numpy()[0]
-        uA = res['uA'].cpu().detach().numpy()[0]
-        lbias = res['lbias'].cpu().detach().numpy()[0]
-        ubias = res['ubias'].cpu().detach().numpy()[0]
+                xs_vec.append(torch.reshape(x, (latent_dim + 1,)))
+                lower_vec.append(torch.reshape(lower, (latent_dim + 1,)))
+                upper_vec.append(torch.reshape(upper, (latent_dim + 1,)))
 
-        post_xmax = ub.cpu().detach().numpy()[0]
-        post_xmin = lb.cpu().detach().numpy()[0]
+            xs = torch.stack(xs_vec).to(device)
+            lowers = torch.stack(lower_vec).to(device)
+            uppers = torch.stack(upper_vec).to(device)
 
-        saved_vals = np.array([post_xmin.astype(np.float64), post_xmax.astype(np.float64)])
-        linear_bounds_info[idx] = saved_vals
-        saved_m = np.array([lA, uA])
-        linear_transform_m[idx] = saved_m
-        saved_b = np.array([lbias, ubias])
-        linear_transform_b[idx] = saved_b
+            ps = PerturbationLpNorm(x_L=lowers, x_U=uppers)
+            lbs, ubs, As = network.compute_bounds(x=(BoundedTensor(xs, ps),), method='alpha-CROWN', return_A=True, needed_A_dict=required_A)
 
+            outputs = As[network.output_name[0]][network.input_name[0]]
+            lA_ = outputs['lA'].cpu().detach().numpy()
+            uA_ = outputs['uA'].cpu().detach().numpy()
+            lbias_ = outputs['lbias'].cpu().detach().numpy()
+            ubias_ = outputs['ubias'].cpu().detach().numpy()
+
+            for index in range(lbs.shape[0]):
+                post_xmax = lbs[index].cpu().detach().numpy()
+                post_xmin = ubs[index].cpu().detach().numpy()
+
+                saved_vals = np.array([post_xmin.astype(np.float64), post_xmax.astype(np.float64)])
+
+                linear_bounds_info[index + i] = saved_vals
+
+                saved_m = np.array([lA_[index], uA_[index]])
+                linear_transform_m[index + i] = saved_m
+
+                saved_b = np.array([lbias_[index], ubias_[index]])
+                linear_transform_b[index + i] = saved_b
+
+    sys.stdout = original_stdout
     return linear_bounds_info, linear_transform_m, linear_transform_b
+
 
