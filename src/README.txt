@@ -24,3 +24,6 @@ Note that auto_LiRPA is from Automatic Perturbation Analysis for Scalable Certif
 Kaidi Xu, Zhouxing Shi, Huan Zhang, Yihan Wang, Kai-Wei Chang, Minlie Huang, Bhavya Kailkhura, Xue Lin, Cho-Jui Hsieh.
 It is used to generate a linear relaxation of the kernel deep kernel so GP bounding can be done.
 The code is formatted to function with this particular version of auto_LiRPA.
+
+
+Note that PPO_Encoder_Example.py is not part of the framework, and is just added as an example application of learning based control.
