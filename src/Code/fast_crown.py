@@ -89,7 +89,7 @@ def bound_gelu_nn_cpu(extents, net, linear_bounds_info, linear_transform_m, line
 
     return linear_bounds_info, linear_transform_m, linear_transform_b
 
-
+# Batch call on GPU/CPU is much faster than any parallelized call on CPU, cpu version kept for comparison
 def bound_gelu_nn(extents, net, linear_bounds_info, linear_transform_m, linear_transform_b, batch_size=20):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net.to(device)
