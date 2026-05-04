@@ -20,11 +20,7 @@ In this case, it also samples dynamics as we have equations available for them.
 In general, the user should provide data in Systems/<SYSTEM_NAME> using the same format as the example (training_data.pkl)
 
 
-Note that auto_LiRPA is the work of {CITE} and is used to generate a linear relaxation of the kernel.
+Note that auto_LiRPA is from Automatic Perturbation Analysis for Scalable Certified Robustness and Beyond. NeurIPS 2020.
+Kaidi Xu, Zhouxing Shi, Huan Zhang, Yihan Wang, Kai-Wei Chang, Minlie Huang, Bhavya Kailkhura, Xue Lin, Cho-Jui Hsieh.
+It is used to generate a linear relaxation of the kernel deep kernel so GP bounding can be done.
 The code is formatted to function with this particular version of auto_LiRPA.
-
-
-
-
-
-
