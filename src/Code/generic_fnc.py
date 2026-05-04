@@ -252,7 +252,7 @@ class StandardGP(gpytorch.models.ExactGP):
             gpytorch.kernels.RBFKernel(lengthscale_prior=lengthscale_prior))
 
     def forward(self, x):
-        # We're first putting our data through a deep net (feature extractor)
+        # not a deep kernel, this is a standard RBF kernel
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
@@ -269,6 +269,7 @@ class DeepKernelGPINN(gpytorch.models.ExactGP):
 
     def forward(self, x):
         # We're first putting our data through a deep net (feature extractor)
+        # this assumes an individual feature extractor per dimension of the dynamics
         projected_x = self.feature_extractor(x) # will output 1 dimension
         mean_x = self.mean_module(projected_x)
         covar_x = self.covar_module(projected_x)
@@ -287,6 +288,7 @@ class DeepKernelGPPNN(gpytorch.models.ExactGP):
 
     def forward(self, x):
         # We're first putting our data through a deep net (feature extractor)
+        # this has a single feature extractor for all dimensions, but only uses the relavant output dimension
         projected_x = self.feature_extractor(x)
         projected_x = torch.index_select(projected_x, 1, self.dim)  # take only the relevant dim
         mean_x = self.mean_module(projected_x)
@@ -307,6 +309,8 @@ def get_grid_info(X, num_regions):
 
 
 def discretize_space_list(space, grid_size, include_space=True):
+    # construct a finite discretization of space based on the number of partitions per dimension in grid_Size
+    
     extents = []
     space_list = []
     for k in list(space):
