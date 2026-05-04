@@ -32,40 +32,12 @@ function find_specific_regions(extents, identifier_values, num_dims, num_regions
 end
 
 
-function shield_refine_check(values, q_question, n_best, init_states, p_action_diff; num_dfa_states=1, dfa_init_state=1)
-    # this returns the n_best regions to refine by assessing the value of satisfying !safe as well as outgoing transition probabilities
-
-    @info "This function shield_refine_check is not complete"
-    exit()
-
-    # determine which states to refine
-    theta = zeros(length(q_question)) # should be the length of non-satisfying states
-
-    for (idx, s) in enumerate(q_question)
-        sat_prob = values[init_states[s]]  # prob of this state satisfying !safe
-
-        i_pimdp = (s-1)*num_dfa_states + dfa_init_state
-        p_actions = p_action_diff[i_pimdp]  # outgoing transitions
-
-        theta[idx] = p_actions * sat_prob
-    end
-
-    n_best = min(n_best, length(q_question))
-    refine_idx = sortperm(theta)[1:n_best]
-    refine_regions = []
-    for i in refine_idx
-        append!(refine_regions, [q_question[i]])
-    end
-
-    refine_regions = sort(refine_regions)
-    return refine_regions
-end
-
-
-
 function refinement_algorithm(refine_states, extents, modes, num_dims, global_dir_name, nn_bounds_dir, refinement;
                               threshold=1e-5, individual_nn=false, reuse_dims=false, dims_refined=Dict(), predefined_dims=false)
-
+    # this identifies which dimensions of each refine state should be split, 
+    # then uses the saved NN linearization to provide new input bounds based on the refinement
+    # saves new ordering of states so the GP bounding can just be done on the refined states
+    
     # load prior info
     if !individual_nn
         # assumes the same network for each dimension
@@ -82,7 +54,6 @@ function refinement_algorithm(refine_states, extents, modes, num_dims, global_di
         exit()
     end
 
-    # TODO, need to figure out how to do this in parallel
     keep_states = []
     for i in 1:size(extents)[1]-1
         if i in refine_states
@@ -203,6 +174,8 @@ end
 
 
 function new_posts_fnc(region, linear_transforms, linear_bias, modes, idx, dims; just_gp=false)
+    # calculate the new NN posterior bounds for the refined regions based on saved linear relaxations
+    
     x_ranges = [region[k,:] for k in 1:(size(region)[1])]
     vertices = [[vert...] for vert in Base.product(x_ranges...)]
 
@@ -255,6 +228,9 @@ end
 
 
 function dim_checker(region, linear_transforms, modes, idx, dim_list, threshold; just_gp=false)
+    # identify which dimensions result in the most relative growth of the dynamics from this region
+    # this is just based on the NN linear relaxation, essentially refine states to reduce conservatism caused by this relaxation
+    
     x_ranges = [region[k,:] for k in 1:(size(region)[1])]
     vertices = [[vert...] for vert in Base.product(x_ranges...)]
 
@@ -330,7 +306,8 @@ end
 
 
 function extent_splitter(extent, refine_dims, threshold, smallest_dim)
-
+    # split a region along the refined_dims and return the new discretization
+    
     num_dims = size(extent)[1]
     grid_size = []
     num_new = 1
